@@ -1,0 +1,5 @@
+/wdsplit
+*.sqlite3
+*.sqlite3-journal
+/data/
+CLAUDE.md

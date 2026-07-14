@@ -1,0 +1,77 @@
+// Command wdsplit runs the wdsplit server and its maintenance subcommands.
+package main
+
+import (
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/andrey-vk/wdsplit/internal/db"
+)
+
+func main() {
+	if err := run(); err != nil {
+		slog.Error("wdsplit exited with error", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	if len(os.Args) < 2 {
+		return errors.New("usage: wdsplit <migrate|serve>")
+	}
+	cmd := os.Args[1]
+	if cmd != "migrate" && cmd != "serve" {
+		return fmt.Errorf("unknown command %q; usage: wdsplit <migrate|serve>", cmd)
+	}
+
+	dbPath := os.Getenv("WDSPLIT_DB")
+	if dbPath == "" {
+		dbPath = "/data/wdsplit.sqlite3"
+	}
+
+	conn, err := db.Open(dbPath)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			slog.Error("close database", "error", cerr)
+		}
+	}()
+
+	switch cmd {
+	case "migrate":
+		slog.Info("migrations applied")
+		return nil
+
+	case "serve":
+		host := os.Getenv("WDSPLIT_HOST")
+		if host == "" {
+			host = "0.0.0.0"
+		}
+		port := os.Getenv("WDSPLIT_PORT")
+		if port == "" {
+			port = "8080"
+		}
+
+		srv := &http.Server{
+			Addr:         host + ":" + port,
+			Handler:      http.NotFoundHandler(),
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  60 * time.Second,
+		}
+
+		slog.Info("wdsplit listening", "addr", srv.Addr, "db", dbPath)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("serve: %w", err)
+		}
+		return nil
+	}
+
+	return nil
+}
