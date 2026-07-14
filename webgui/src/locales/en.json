@@ -1,0 +1,17 @@
+{
+  "app": {
+    "title": "wdsplit",
+    "subtitle": "Admin console"
+  },
+  "login": {
+    "password": "Password",
+    "submit": "Log in",
+    "invalid_password": "Invalid password",
+    "rate_limit": "Too many attempts. Please wait and try again.",
+    "network_error": "Network error. Please try again.",
+    "bad_request": "Invalid request"
+  },
+  "nav": {
+    "dashboard": "Dashboard"
+  }
+}
