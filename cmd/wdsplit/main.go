@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,8 +10,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/andrey-vk/wdsplit/internal/config"
 	"github.com/andrey-vk/wdsplit/internal/crypto"
 	"github.com/andrey-vk/wdsplit/internal/db"
+	"github.com/andrey-vk/wdsplit/internal/settings"
+	"github.com/andrey-vk/wdsplit/internal/web"
 )
 
 func main() {
@@ -69,9 +73,14 @@ func run() error {
 			port = "8080"
 		}
 
+		cfg, err := config.Load(context.Background(), settings.NewSQLStore(conn), nil)
+		if err != nil {
+			return fmt.Errorf("load settings: %w", err)
+		}
+
 		srv := &http.Server{
 			Addr:         host + ":" + port,
-			Handler:      http.NotFoundHandler(),
+			Handler:      web.NewServer(cfg),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  60 * time.Second,
