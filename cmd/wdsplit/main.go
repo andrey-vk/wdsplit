@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/andrey-vk/wdsplit/internal/crypto"
 	"github.com/andrey-vk/wdsplit/internal/db"
 )
 
@@ -21,11 +22,21 @@ func main() {
 
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: wdsplit <migrate|serve>")
+		return errors.New("usage: wdsplit <migrate|serve|genkey>")
 	}
 	cmd := os.Args[1]
+
+	if cmd == "genkey" {
+		key, err := crypto.GenerateKey()
+		if err != nil {
+			return fmt.Errorf("generate key: %w", err)
+		}
+		fmt.Println(key)
+		return nil
+	}
+
 	if cmd != "migrate" && cmd != "serve" {
-		return fmt.Errorf("unknown command %q; usage: wdsplit <migrate|serve>", cmd)
+		return fmt.Errorf("unknown command %q; usage: wdsplit <migrate|serve|genkey>", cmd)
 	}
 
 	dbPath := os.Getenv("WDSPLIT_DB")
