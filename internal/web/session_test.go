@@ -21,7 +21,16 @@ func TestValidSessionRejectsWrongSecret(t *testing.T) {
 
 func TestValidSessionRejectsTamperedValue(t *testing.T) {
 	token := sessionToken("s3cr3t")
-	tampered := token[:len(token)-1] + "0"
+	// Flip the last character to a value guaranteed to differ from it,
+	// rather than a fixed replacement — the signature's last hex digit is
+	// effectively random, so always substituting "0" would occasionally
+	// (1 in 16) produce the exact same token and make this test flake.
+	last := token[len(token)-1]
+	replacement := byte('0')
+	if last == replacement {
+		replacement = '1'
+	}
+	tampered := token[:len(token)-1] + string(replacement)
 	if validSession("s3cr3t", tampered, time.Hour) {
 		t.Error("validSession() = true for a tampered token, want false")
 	}
