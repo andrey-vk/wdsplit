@@ -34,7 +34,7 @@ func newTestServer(t *testing.T) *Server {
 	if err != nil {
 		t.Fatalf("config.Load: %v", err)
 	}
-	return NewServer(cfg)
+	return NewServer(cfg, nil)
 }
 
 func doLogin(t *testing.T, s *Server, password string) *httptest.ResponseRecorder {

@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	spa "github.com/andrey-vk/wdsplit"
 	"github.com/andrey-vk/wdsplit/internal/config"
 	"github.com/andrey-vk/wdsplit/internal/crypto"
 	"github.com/andrey-vk/wdsplit/internal/db"
@@ -78,9 +79,14 @@ func run() error {
 			return fmt.Errorf("load settings: %w", err)
 		}
 
+		distFS, err := spa.DistFS()
+		if err != nil {
+			return fmt.Errorf("load embedded frontend: %w", err)
+		}
+
 		srv := &http.Server{
 			Addr:         host + ":" + port,
-			Handler:      web.NewServer(cfg),
+			Handler:      web.NewServer(cfg, distFS),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  60 * time.Second,
