@@ -1,13 +1,25 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/admin/stores/auth'
+import AppLayout from '@/admin/layout/AppLayout.vue'
 
 const router = createRouter({
   history: createWebHistory('/'),
   routes: [
     {
       path: '/',
-      name: 'dashboard',
-      component: () => import('@/admin/views/Dashboard.vue'),
+      component: AppLayout,
+      children: [
+        {
+          path: '',
+          name: 'dashboard',
+          component: () => import('@/admin/views/Dashboard.vue'),
+        },
+        {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('@/admin/views/SettingsPage.vue'),
+        },
+      ],
     },
     {
       path: '/login',

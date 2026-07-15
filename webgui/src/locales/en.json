@@ -13,6 +13,39 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "settings": "Settings",
     "logout": "Logout"
+  },
+  "settings": {
+    "title": "Settings",
+    "save": "Save",
+    "saved": "Settings saved",
+    "load_error": "Failed to load settings",
+    "save_error": "Failed to save settings",
+    "env_locked": "ENV",
+    "env_locked_hint": "Overridden by environment variable {var}",
+    "env_only": "ENV ONLY",
+    "env_only_hint": "Can only be configured via environment variable {var}",
+    "secret_configured": "Configured",
+    "secret_hint": "Leave blank to keep the current value",
+    "unsaved_changes_confirm": "You have unsaved changes. Leave anyway?",
+    "fields": {
+      "admin_password": {
+        "label": "Admin password",
+        "hint": "Password for the single admin login."
+      },
+      "session_secret": {
+        "label": "Session secret",
+        "hint": "Signs admin session and CSRF tokens."
+      },
+      "session_max_age": {
+        "label": "Session max age (seconds)",
+        "hint": "How long an admin login session lasts. 0 means the session cookie expires when the browser closes."
+      },
+      "admin_cookie_secure": {
+        "label": "Admin cookie Secure flag",
+        "hint": "\"auto\" sets Secure only when the request arrived over HTTPS. Set to \"false\" for local HTTP development."
+      }
+    }
   }
 }

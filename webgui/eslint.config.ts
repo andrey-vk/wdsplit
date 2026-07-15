@@ -56,7 +56,10 @@ export default defineConfigWithVueTs(
       // via usage.
       '@intlify/vue-i18n/no-missing-keys-in-other-locales': 'error',
       // Keeps locale files from accumulating dead entries as UI changes.
-      '@intlify/vue-i18n/no-unused-keys': 'error',
+      // settings.fields.* is exempted: SettingField.vue looks those keys
+      // up dynamically (t(settingsMeta[key].labelKey)), which the static
+      // analyzer can't trace back from a literal string.
+      '@intlify/vue-i18n/no-unused-keys': ['error', { ignores: ['/^settings\\.fields\\..*/'] }],
     },
   },
 
