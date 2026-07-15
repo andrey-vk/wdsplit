@@ -27,8 +27,14 @@ var ErrEnvOnly = errors.New("setting is env-only and cannot be changed")
 type OnChangeFunc[T any] func(newValue T)
 
 // Spec describes one setting: its default, where it may be sourced from,
-// and how to parse/validate a raw string value.
+// how to parse/validate a raw string value, and metadata an admin UI
+// needs to render and list it.
 type Spec[T any] struct {
+	// Key is the stable identifier used for API/UI purposes — always
+	// required, independent of DBKey, since env-only settings have no
+	// DBKey but still need an identifier to be listed.
+	Key string
+
 	Default T
 
 	// DBKey is the row key in the setting table. Empty means the setting
@@ -39,10 +45,51 @@ type Spec[T any] struct {
 	// the default. Empty means there is no env override.
 	EnvVar string
 
+	// Secret means the value is never exposed via Info.ValueString (e.g.
+	// a password) — only whether it's set.
+	Secret bool
+
+	// UIType hints how an admin UI should render this setting: "string",
+	// "password", "int", "bool", or "select" (with Options).
+	UIType string
+
+	// Options lists the valid values for UIType "select".
+	Options []string
+
 	Parse func(string) (T, error)
 
 	// Validate is optional; nil means any value Parse accepts is valid.
 	Validate func(T) error
+}
+
+// Info is the non-generic view of a Setting an admin UI/API can list and
+// update without knowing its underlying Go type — Validate and Set both
+// take a raw string, so unlike Get they don't depend on T and can be
+// expressed on a common interface.
+type Info interface {
+	Key() string
+	EnvVar() string
+	IsEnvLocked() bool
+
+	// Editable reports whether this setting has a DBKey at all — false
+	// means env-only, permanently unsettable via Set, regardless of
+	// whether the env var happens to be set right now. IsEnvLocked is a
+	// separate, temporary condition: a DB-editable setting becomes
+	// env-locked only while its env var is set, and would accept Set
+	// again if that env var were removed and the process restarted.
+	Editable() bool
+
+	IsSecret() bool
+	UIType() string
+	Options() []string
+
+	// ValueString/DefaultString are empty for secrets.
+	ValueString() string
+	DefaultString() string
+
+	// Validate parses and validates raw without applying it.
+	Validate(raw string) error
+	Set(ctx context.Context, raw string) error
 }
 
 // Setting is one runtime-configurable value.
@@ -50,10 +97,14 @@ type Setting[T any] struct {
 	mu    sync.RWMutex
 	value T
 
+	key       string
 	def       T
 	dbKey     string
 	envVar    string
 	envLocked bool
+	secret    bool
+	uiType    string
+	options   []string
 
 	parse    func(string) (T, error)
 	validate func(T) error
@@ -62,6 +113,8 @@ type Setting[T any] struct {
 	listenersMu sync.Mutex
 	listeners   []OnChangeFunc[T]
 }
+
+var _ Info = (*Setting[string])(nil)
 
 // New resolves a setting's effective value from dbValues (as returned by
 // Store.GetAll, loaded once by the caller) and the environment, in that
@@ -76,9 +129,13 @@ func New[T any](store Store, dbValues map[string]string, spec Spec[T], logger *s
 	}
 
 	s := &Setting[T]{
+		key:      spec.Key,
 		def:      spec.Default,
 		dbKey:    spec.DBKey,
 		envVar:   spec.EnvVar,
+		secret:   spec.Secret,
+		uiType:   spec.UIType,
+		options:  spec.Options,
 		parse:    spec.Parse,
 		validate: spec.Validate,
 		store:    store,
@@ -143,6 +200,34 @@ func (s *Setting[T]) IsEnvLocked() bool {
 	return s.envLocked
 }
 
+// Validate parses and validates raw without applying it — used to check a
+// batch of updates before committing any of them (see Set).
+func (s *Setting[T]) Validate(raw string) error {
+	if s.dbKey == "" {
+		return ErrEnvOnly
+	}
+	if s.envLocked {
+		return fmt.Errorf("setting is overridden by env var %s and cannot be changed", s.envVar)
+	}
+	_, err := s.parseAndValidate(raw)
+	return err
+}
+
+func (s *Setting[T]) parseAndValidate(raw string) (T, error) {
+	v, err := s.parse(raw)
+	if err != nil {
+		var zero T
+		return zero, fmt.Errorf("invalid value: %w", err)
+	}
+	if s.validate != nil {
+		if err := s.validate(v); err != nil {
+			var zero T
+			return zero, err
+		}
+	}
+	return v, nil
+}
+
 // Set parses and validates raw, persists it via the store, updates the
 // cached value, and notifies OnChange listeners — in that order, so a
 // failed persist never changes what Get returns.
@@ -154,14 +239,9 @@ func (s *Setting[T]) Set(ctx context.Context, raw string) error {
 		return fmt.Errorf("setting is overridden by env var %s and cannot be changed", s.envVar)
 	}
 
-	v, err := s.parse(raw)
+	v, err := s.parseAndValidate(raw)
 	if err != nil {
-		return fmt.Errorf("invalid value: %w", err)
-	}
-	if s.validate != nil {
-		if err := s.validate(v); err != nil {
-			return err
-		}
+		return err
 	}
 
 	if err := s.store.Save(ctx, s.dbKey, raw); err != nil {
@@ -174,6 +254,43 @@ func (s *Setting[T]) Set(ctx context.Context, raw string) error {
 
 	s.fireCallbacks(v)
 	return nil
+}
+
+// Key returns the setting's stable API identifier.
+func (s *Setting[T]) Key() string { return s.key }
+
+// EnvVar returns the env var that can override this setting, or "".
+func (s *Setting[T]) EnvVar() string { return s.envVar }
+
+// Editable reports whether this setting has a DBKey — see the Info
+// interface doc for how this differs from IsEnvLocked.
+func (s *Setting[T]) Editable() bool { return s.dbKey != "" }
+
+// IsSecret reports whether ValueString/DefaultString withhold the value.
+func (s *Setting[T]) IsSecret() bool { return s.secret }
+
+// UIType hints how an admin UI should render this setting.
+func (s *Setting[T]) UIType() string { return s.uiType }
+
+// Options lists the valid values for UIType "select".
+func (s *Setting[T]) Options() []string { return s.options }
+
+// ValueString returns the current value formatted as a string, or "" if
+// this setting is secret.
+func (s *Setting[T]) ValueString() string {
+	if s.secret {
+		return ""
+	}
+	return fmt.Sprintf("%v", s.Get())
+}
+
+// DefaultString returns the default value formatted as a string, or "" if
+// this setting is secret.
+func (s *Setting[T]) DefaultString() string {
+	if s.secret {
+		return ""
+	}
+	return fmt.Sprintf("%v", s.def)
 }
 
 // OnChange registers fn to be called after every successful Set. It

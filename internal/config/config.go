@@ -32,6 +32,19 @@ type Settings struct {
 	AdminCookieSecure *settings.Setting[string]
 }
 
+// List returns every setting as its non-generic Info view, for an admin
+// API/UI to enumerate. Update this alongside Settings and Load whenever a
+// field is added — there are only a handful of settings, so a manual
+// list is simpler than reflection-based auto-discovery.
+func (s *Settings) List() []settings.Info {
+	return []settings.Info{
+		s.AdminPassword,
+		s.SessionSecret,
+		s.SessionMaxAge,
+		s.AdminCookieSecure,
+	}
+}
+
 // Load resolves every setting from the store (once) and the environment.
 func Load(ctx context.Context, store settings.Store, logger *slog.Logger) (*Settings, error) {
 	dbValues, err := store.GetAll(ctx)
@@ -40,7 +53,10 @@ func Load(ctx context.Context, store settings.Store, logger *slog.Logger) (*Sett
 	}
 
 	adminPassword, err := settings.New(store, dbValues, settings.Spec[string]{
+		Key:    "admin_password",
 		EnvVar: "WDSPLIT_ADMIN_PASSWORD",
+		Secret: true,
+		UIType: "password",
 		Parse:  settings.ParseString,
 	}, logger)
 	if err != nil {
@@ -51,7 +67,10 @@ func Load(ctx context.Context, store settings.Store, logger *slog.Logger) (*Sett
 	}
 
 	sessionSecret, err := settings.New(store, dbValues, settings.Spec[string]{
+		Key:    "session_secret",
 		EnvVar: "WDSPLIT_SESSION_SECRET",
+		Secret: true,
+		UIType: "password",
 		Parse:  settings.ParseString,
 	}, logger)
 	if err != nil {
@@ -62,9 +81,11 @@ func Load(ctx context.Context, store settings.Store, logger *slog.Logger) (*Sett
 	}
 
 	sessionMaxAge, err := settings.New(store, dbValues, settings.Spec[int]{
+		Key:     "session_max_age",
 		Default: 28800, // 8 hours
 		DBKey:   "session_max_age",
 		EnvVar:  "WDSPLIT_SESSION_MAX_AGE",
+		UIType:  "int",
 		Parse:   settings.ParseInt,
 		Validate: func(v int) error {
 			if v < 0 {
@@ -78,9 +99,12 @@ func Load(ctx context.Context, store settings.Store, logger *slog.Logger) (*Sett
 	}
 
 	adminCookieSecure, err := settings.New(store, dbValues, settings.Spec[string]{
+		Key:     "admin_cookie_secure",
 		Default: "auto",
 		DBKey:   "admin_cookie_secure",
 		EnvVar:  "WDSPLIT_ADMIN_COOKIE_SECURE",
+		UIType:  "select",
+		Options: []string{"auto", "true", "false"},
 		Parse:   settings.ParseString,
 		Validate: func(v string) error {
 			switch v {

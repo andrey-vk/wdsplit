@@ -250,3 +250,106 @@ func TestValidateRejectsOutOfRangeValue(t *testing.T) {
 		t.Errorf("Get() after rejected Set = %d, want unchanged default 42", got)
 	}
 }
+
+func TestValidateDoesNotApply(t *testing.T) {
+	store := newFakeStore(nil)
+	s, err := New(store, map[string]string{}, Spec[int]{
+		Key: "sync_interval", Default: 42, DBKey: "sync_interval", Parse: ParseInt,
+	}, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if err := s.Validate("100"); err != nil {
+		t.Fatalf("Validate(100): %v", err)
+	}
+	if got := s.Get(); got != 42 {
+		t.Errorf("Get() after Validate() = %d, want unchanged default 42 (Validate must not apply)", got)
+	}
+	if len(store.saved) != 0 {
+		t.Errorf("store.saved = %v, want empty (Validate must not persist)", store.saved)
+	}
+}
+
+func TestValidateRejectsEnvOnlyAndEnvLocked(t *testing.T) {
+	store := newFakeStore(nil)
+	s, err := New(store, map[string]string{}, Spec[string]{
+		Key: "db_path", EnvVar: "WDSPLIT_DB", Parse: ParseString,
+	}, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := s.Validate("whatever"); !errors.Is(err, ErrEnvOnly) {
+		t.Errorf("Validate() error = %v, want ErrEnvOnly", err)
+	}
+}
+
+func TestInfoAccessors(t *testing.T) {
+	store := newFakeStore(map[string]string{"admin_cookie_secure": "false"})
+	s, err := New(store, map[string]string{"admin_cookie_secure": "false"}, Spec[string]{
+		Key:     "admin_cookie_secure",
+		Default: "auto",
+		DBKey:   "admin_cookie_secure",
+		EnvVar:  "WDSPLIT_ADMIN_COOKIE_SECURE",
+		UIType:  "select",
+		Options: []string{"auto", "true", "false"},
+		Parse:   ParseString,
+	}, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	var info Info = s
+	if got := info.Key(); got != "admin_cookie_secure" {
+		t.Errorf("Key() = %q, want %q", got, "admin_cookie_secure")
+	}
+	if got := info.EnvVar(); got != "WDSPLIT_ADMIN_COOKIE_SECURE" {
+		t.Errorf("EnvVar() = %q, want %q", got, "WDSPLIT_ADMIN_COOKIE_SECURE")
+	}
+	if info.IsEnvLocked() {
+		t.Error("IsEnvLocked() = true, want false (value came from DB, not env)")
+	}
+	if info.IsSecret() {
+		t.Error("IsSecret() = true, want false")
+	}
+	if got := info.UIType(); got != "select" {
+		t.Errorf("UIType() = %q, want %q", got, "select")
+	}
+	if got := info.Options(); len(got) != 3 {
+		t.Errorf("Options() = %v, want 3 entries", got)
+	}
+	if got := info.ValueString(); got != "false" {
+		t.Errorf("ValueString() = %q, want %q", got, "false")
+	}
+	if got := info.DefaultString(); got != "auto" {
+		t.Errorf("DefaultString() = %q, want %q", got, "auto")
+	}
+}
+
+func TestSecretSettingHidesValue(t *testing.T) {
+	t.Setenv("WDSPLIT_ADMIN_PASSWORD", "hunter2")
+
+	store := newFakeStore(nil)
+	s, err := New(store, map[string]string{}, Spec[string]{
+		Key: "admin_password", EnvVar: "WDSPLIT_ADMIN_PASSWORD", Secret: true, UIType: "password", Parse: ParseString,
+	}, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	var info Info = s
+	if got := info.ValueString(); got != "" {
+		t.Errorf("ValueString() = %q, want empty for a secret", got)
+	}
+	if got := info.DefaultString(); got != "" {
+		t.Errorf("DefaultString() = %q, want empty for a secret", got)
+	}
+	if !info.IsSecret() {
+		t.Error("IsSecret() = false, want true")
+	}
+	// The actual value is still functionally set and usable — only its
+	// string representation is withheld.
+	if s.Get() != "hunter2" {
+		t.Error("Get() should still return the real value internally")
+	}
+}

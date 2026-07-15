@@ -43,6 +43,8 @@ func (s *Server) routes(staticFS fs.FS) {
 	s.mux.HandleFunc("POST /api/admin/login", s.handleLogin)
 	s.mux.HandleFunc("GET /api/admin/me", s.requireAdmin(s.handleMe))
 	s.mux.HandleFunc("POST /api/admin/logout", s.handleLogout)
+	s.mux.HandleFunc("GET /api/admin/settings", s.requireAdmin(s.handleListSettings))
+	s.mux.HandleFunc("PUT /api/admin/settings", s.requireAdmin(s.handleUpdateSettings))
 
 	if staticFS != nil {
 		s.mux.Handle("/", spaHandler(staticFS))

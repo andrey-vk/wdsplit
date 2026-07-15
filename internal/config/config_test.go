@@ -72,3 +72,34 @@ func TestLoadRejectsInvalidAdminCookieSecure(t *testing.T) {
 		t.Errorf("AdminCookieSecure = %q, want fallback to default %q", got, "auto")
 	}
 }
+
+func TestListReturnsAllSettings(t *testing.T) {
+	t.Setenv("WDSPLIT_ADMIN_PASSWORD", "hunter2")
+	t.Setenv("WDSPLIT_SESSION_SECRET", "s3cr3t")
+
+	cfg, err := Load(context.Background(), &fakeStore{values: map[string]string{}}, nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	list := cfg.List()
+	if len(list) != 4 {
+		t.Fatalf("List() returned %d settings, want 4", len(list))
+	}
+
+	keys := make(map[string]bool)
+	for _, info := range list {
+		keys[info.Key()] = true
+	}
+	for _, want := range []string{"admin_password", "session_secret", "session_max_age", "admin_cookie_secure"} {
+		if !keys[want] {
+			t.Errorf("List() missing key %q", want)
+		}
+	}
+
+	for _, info := range list {
+		if info.Key() == "admin_password" && info.ValueString() != "" {
+			t.Error("admin_password ValueString() should be empty (secret)")
+		}
+	}
+}
