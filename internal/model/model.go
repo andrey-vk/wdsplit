@@ -20,20 +20,37 @@ type CatalogMode struct {
 	Name string
 }
 
-// AdapterKind identifies which upstream format an Adapter parses.
+// AdapterKind distinguishes manual (GUI-edited, no source) adapters from
+// every other adapter, which now all run identically through the JS
+// sandbox regardless of upstream format — see internal/adapter/jsrun.
 type AdapterKind string
 
 const (
-	AdapterManual          AdapterKind = "manual"
-	AdapterV2flyDomainList AdapterKind = "v2fly-domain-list"
-	AdapterSingBoxRuleset  AdapterKind = "sing-box-ruleset"
-	AdapterPlaintextList   AdapterKind = "plaintext-lst"
+	AdapterManual AdapterKind = "manual"
+	AdapterJS     AdapterKind = "js"
 )
 
+// Adapter is either a manual (GUI-edited) source or a sandboxed JS
+// script. Builtin JS adapters are read-only; forking one for
+// customization creates a new Adapter row with TemplateSourceID set,
+// never edits the builtin in place.
 type Adapter struct {
 	ID   int64
 	Name string
 	Kind AdapterKind
+
+	// SourceCode is nil for AdapterManual.
+	SourceCode *string
+
+	IsBuiltin bool
+
+	// Version increments each time a builtin's embedded seed source
+	// changes on upgrade. Meaningless for non-builtin adapters.
+	Version int
+
+	// Set only on a forked (non-builtin) adapter.
+	TemplateSourceID      *int64
+	TemplateVersionAtFork *int
 }
 
 // Feed is one (adapter, config) instance producing CatalogEntry rows. A nil
