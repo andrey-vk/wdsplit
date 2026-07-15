@@ -12,6 +12,7 @@
     "bad_request": "Invalid request"
   },
   "nav": {
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "logout": "Logout"
   }
 }

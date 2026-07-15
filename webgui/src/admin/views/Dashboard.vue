@@ -12,7 +12,7 @@ const authStore = useAuthStore()
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold m-0">{{ t('nav.dashboard') }}</h1>
       <Button
-        label="Logout"
+        :label="t('nav.logout')"
         icon="pi pi-sign-out"
         severity="secondary"
         outlined
