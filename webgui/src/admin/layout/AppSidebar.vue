@@ -20,7 +20,7 @@ const items = [
   />
 
   <aside
-    class="fixed inset-y-0 left-0 z-30 w-64 shrink-0 border-r border-surface-200 bg-surface-0 transition-transform dark:border-surface-800 dark:bg-surface-900 lg:static lg:translate-x-0"
+    class="fixed inset-y-0 left-0 z-30 w-64 shrink-0 border-r border-surface-200 bg-surface-0 transition-transform dark:border-surface-800 dark:bg-surface-900 lg:translate-x-0"
     :class="open ? 'translate-x-0' : '-translate-x-full'"
   >
     <div class="flex h-16 items-center gap-2 px-6">

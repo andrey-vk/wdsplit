@@ -16,6 +16,10 @@
     "settings": "Settings",
     "logout": "Logout"
   },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark"
+  },
   "settings": {
     "title": "Settings",
     "save": "Save",
